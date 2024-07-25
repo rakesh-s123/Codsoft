@@ -1,0 +1,32 @@
+import numpy as np
+import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
+ratings = pd.read_csv('ratings.csv')
+ratings_pivot = ratings.pivot(index='userId', columns='movieId', values='rating').fillna(0)
+user_similarity = cosine_similarity(ratings_pivot)
+user_similarity_df = pd.DataFrame(user_similarity, index=ratings_pivot.index, columns=ratings_pivot.index)
+def predict_ratings(ratings, similarity):
+    mean_user_rating = ratings.mean(axis=1)
+    ratings_diff = (ratings - mean_user_rating[:, np.newaxis])
+    pred = mean_user_rating[:, np.newaxis] + similarity.dot(ratings_diff) / np.array([np.abs(similarity).sum(axis=1)]).T
+    return pred
+predicted_ratings = predict_ratings(ratings_pivot.values, user_similarity)
+predicted_ratings_df = pd.DataFrame(predicted_ratings, index=ratings_pivot.index, columns=ratings_pivot.columns)
+def recommend_movies(user_id, num_recommendations):
+    user_predicted_ratings = predicted_ratings_df.loc[user_id]
+    sorted_user_predictions = user_predicted_ratings.sort_values(ascending=False)
+    recommendations = sorted_user_predictions.head(num_recommendations)
+    return recommendations
+recommendations = recommend_movies(user_id=1, num_recommendations=5)
+print(recommendations)
+
+# Sample movie names with years
+movies = {
+    1: "The Shawshank Redemption (1994)",
+    2: "The Godfather (1972)",
+    3: "The Dark Knight (2008)",
+    4: "Pulp Fiction (1994)",
+    5: "Forrest Gump (1994)"
+}
+for movie_id in recommendations.index:
+    print(f"Movie ID {movie_id}: {movies.get(movie_id, 'Unknown')}")
