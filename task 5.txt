@@ -1,0 +1,55 @@
+import cv2
+import dlib
+import numpy as np
+import os
+
+detector = dlib.get_frontal_face_detector()
+shape_predictor = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat')
+face_recognizer = dlib.face_recognition_model_v1('dlib_face_recognition_resnet_model_v1.dat')
+
+def get_face_descriptor(image, face):
+    shape = shape_predictor(image, face)
+    face_descriptor = face_recognizer.compute_face_descriptor(image, shape)
+    return np.array(face_descriptor)
+
+known_face_descriptors = []
+known_face_labels = []
+
+for person_name in os.listdir('known_faces'):
+    person_folder = os.path.join('known_faces', person_name)
+    for image_name in os.listdir(person_folder):
+        image_path = os.path.join(person_folder, image_name)
+        image = cv2.imread(image_path)
+        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        faces = detector(gray_image)
+        if len(faces) > 0:
+            face_descriptor = get_face_descriptor(image, faces[0])
+            known_face_descriptors.append(face_descriptor)
+            known_face_labels.append(person_name)
+
+def recognize_faces(image):
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    faces = detector(gray_image)
+    recognized_faces = []
+    for face in faces:
+        face_descriptor = get_face_descriptor(image, face)
+        distances = np.linalg.norm(known_face_descriptors - face_descriptor, axis=1)
+        min_distance_index = np.argmin(distances)
+        if distances[min_distance_index] < 0.6:
+            recognized_faces.append((face, known_face_labels[min_distance_index]))
+        else:
+            recognized_faces.append((face, "Unknown"))
+    return recognized_faces
+
+def draw_recognized_faces(image, recognized_faces):
+    for face, label in recognized_faces:
+        x, y, w, h = (face.left(), face.top(), face.width(), face.height())
+        cv2.rectangle(image, (x, y), (x + w, y + h), (255, 0, 0), 2)
+        cv2.putText(image, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
+
+image = cv2.imread('path_to_image.jpg')
+recognized_faces = recognize_faces(image)
+draw_recognized_faces(image, recognized_faces)
+cv2.imshow('Face Detection and Recognition', image)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
